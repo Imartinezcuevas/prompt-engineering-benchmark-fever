@@ -71,6 +71,7 @@ class CoTPipeline:
 
         df['cot_reasoning'] = raw_outputs
         df['predicted_label'] = predictions
+        df['latency_seconds'] = latencies
 
         accuracy = evaluate_accuracy(df['predicted_label'].to_list(), df['label'].to_list())
         avg_latency = sum(latencies) / len(latencies)

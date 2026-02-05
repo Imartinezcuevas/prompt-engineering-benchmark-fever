@@ -74,9 +74,10 @@ class ZeroShotPipeline:
             predictions.append(raw_response)
 
         df['raw_response'] = predictions
-        df['predicted_labels'] = [normalize_answer(p) for p in predictions]
+        df['predicted_label'] = [normalize_answer(p) for p in predictions]
+        df['latency_seconds'] = latencies
 
-        accuracy = evaluate_accuracy(df['predicted_labels'].tolist(), df['label'].tolist())
+        accuracy = evaluate_accuracy(df['predicted_label'].tolist(), df['label'].tolist())
         avg_latency = sum(latencies) / len(latencies)
 
         os.makedirs("results/logs", exist_ok=True)

@@ -90,6 +90,7 @@ class SelfConsistencyPipeline:
 
         df['predicted_label'] = final_predictions
         df['votes'] = all_votes_log
+        df['latency_seconds'] = latencies
 
         accuracy = evaluate_accuracy(df['predicted_label'].tolist(), df['label'].tolist())
         avg_latency = sum(latencies) / len(latencies)
