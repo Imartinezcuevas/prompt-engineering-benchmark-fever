@@ -84,7 +84,7 @@ class CoTPipeline:
         print(f" RESULTS: Chain-of-Thought ({self.llm.model_name})")
         print("="*40)
         print(f" Accuracy:      {accuracy:.2f}%")
-        print(f"⏱ Avg Latency:   {avg_latency:.2f}s")
+        print(f" Avg Latency:   {avg_latency:.2f}s")
         print(f" Log saved to:  {log_file}")
         print("="*40)
         
