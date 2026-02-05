@@ -70,7 +70,8 @@ def main():
     strategies = [
         ("zero_shot", "Zero-Shot"),
         ("cot", "Chain-of-Thought"),
-        ("self_consistency", "Self-Consistency")
+        ("self_consistency", "Self-Consistency"),
+        ("rag", "RAG")
     ]
     
     data = []
