@@ -60,18 +60,31 @@ class WebRetriever:
         """Fallback 2: Try searching official Wikipedia API."""
         try:
             # Clean query: Remove "fact check" instructions for better Wiki matching
-            clean_query = query.replace(" fact check", "").strip()
+            clean_query = query.replace(" fact check", "").replace("full cast", "").strip()
             
-            # 1. Search for page titles
             search_results = wikipedia.search(clean_query)
             if not search_results:
                 return None
             
-            # 2. Get summary of the first result
-            best_page = search_results[0]
-            summary = wikipedia.summary(best_page, sentences=3, auto_suggest=False)
+            # 2. SANITY CHECK: Does the page title match our query keywords?
+            best_page_title = search_results[0]
             
-            return f"[Source Wikipedia - {best_page}]: {summary}"
+            # Simple fuzzy check: Do words from the title appear in our query?
+            query_words = set(clean_query.lower().split())
+            title_words = set(best_page_title.lower().split())
+            
+            # Intersection check (at least one significant word must match)
+            if not query_words.intersection(title_words) and len(query_words) > 0:
+                 # Try the second result
+                 if len(search_results) > 1:
+                     best_page_title = search_results[1]
+                 else:
+                     return None
+
+            # 3. Get summary
+            summary = wikipedia.summary(best_page_title, sentences=10, auto_suggest=False)
+            
+            return f"[Source Wikipedia - {best_page_title}]: {summary}"
             
         except wikipedia.exceptions.DisambiguationError as e:
             # Handle ambiguous terms (e.g. "Mercury" -> Planet or Element?)
@@ -91,21 +104,21 @@ class WebRetriever:
         """
         # Append 'fact check' for search engines, but keep raw query for Wikipedia
         search_engine_query = f"{query} fact check"
+
+        # 1. Try Wikipedia
+        evidence = self.search_wikipedia(query)
+        if evidence:
+            return evidence
         
-        # 1. Try DuckDuckGo
+        # 2. Fallback to DuckDuckGo
+        print("Switching to DuckDuckGo fallback...")
         evidence = self.search_duckduckgo(search_engine_query)
         if evidence:
             return evidence
             
-        # 2. Fallback to Google
+        # 3. Fallback to Google
         print("Switching to Google Search fallback...")
         evidence = self.search_google(search_engine_query)
-        if evidence:
-            return evidence
-
-        # 3. Fallback to Wikipedia
-        print("Switching to Wikipedia fallback...")
-        evidence = self.search_wikipedia(query)
         if evidence:
             return evidence
             
