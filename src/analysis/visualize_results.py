@@ -71,7 +71,9 @@ def main():
         ("zero_shot", "Zero-Shot"),
         ("cot", "Chain-of-Thought"),
         ("self_consistency", "Self-Consistency"),
-        ("rag", "RAG")
+        ("rag", "RAG"),
+        ("decomposition", "Decomposition"),
+        ("agent_fixed", "Agent")
     ]
     
     data = []
@@ -107,7 +109,7 @@ def main():
         legend=False
     )
     
-    plt.title("Accuracy Comparison: Zero-Shot vs Reasoning", fontsize=16)
+    plt.title("Accuracy Comparison", fontsize=16)
     plt.ylabel("Accuracy (%)", fontsize=12)
     plt.ylim(0, 100)
     
@@ -136,9 +138,6 @@ def main():
         s=200, 
         style="Strategy"
     )
-    
-    # Draw a line connecting the points to visualize the trend
-    plt.plot(df_results["Latency"], df_results["Accuracy"], linestyle='--', color='gray', alpha=0.5)
     
     plt.title("Trade-off: Computational Cost vs Accuracy", fontsize=16)
     plt.xlabel("Average Latency (seconds)", fontsize=12)
