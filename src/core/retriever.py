@@ -1,19 +1,20 @@
-# src/core/retriever.py
 from ddgs import DDGS
 from googlesearch import search as google_search
 import wikipedia
+import time
 
 class WebRetriever:
     """
     A multi-stage retriever that attempts to fetch evidence from:
     1. DuckDuckGo (Fastest)
-    2. Google Search (Broadest)
-    3. Wikipedia (Most reliable for encyclopedic facts)
+    2. Wikipedia (Most reliable for encyclopedic facts)
+    3. Google Search (Broadest - last resort)
     """
     
-    def __init__(self, max_results=1):
+    def __init__(self, max_results=2, verbose=False):
         self.max_results = max_results
         self.ddgs = DDGS()
+        self.verbose = verbose
         wikipedia.set_lang("en")
 
     def search_duckduckgo(self, query):
@@ -28,20 +29,24 @@ class WebRetriever:
             for i, res in enumerate(results, 1):
                 body = res.get('body', '')
                 if body:
-                    evidence_list.append(f"[Source DDG-{i}]: {body}")
-            return "\n".join(evidence_list)
+                    evidence_list.append(f"[DDG-{i}]: {body}")
+            
+            if evidence_list:
+                return "\n".join(evidence_list)
+            return None
             
         except Exception as e:
-            print(f" DuckDuckGo failed: {e}")
+            if self.verbose:
+                print(f" DuckDuckGo failed: {e}")
             return None
 
     def search_google(self, query):
-        """Fallback 1: Try searching with Google."""
+        """Fallback: Try searching with Google."""
         try:
             results = google_search(query, num_results=self.max_results, advanced=True)
             
             evidence_list = []
-            results = list(results) # Convert generator to list
+            results = list(results)
             
             if not results:
                 return None
@@ -49,88 +54,113 @@ class WebRetriever:
             for i, res in enumerate(results, 1):
                 body = res.description
                 if body:
-                    evidence_list.append(f"[Source Google-{i}]: {body}")
-            return "\n".join(evidence_list)
+                    evidence_list.append(f"[Google-{i}]: {body}")
+            
+            if evidence_list:
+                return "\n".join(evidence_list)
+            return None
             
         except Exception as e:
-            print(f" Google failed: {e}")
+            if self.verbose:
+                print(f" Google failed: {e}")
             return None
 
     def search_wikipedia(self, query):
-        """Fallback 2: Try searching official Wikipedia API."""
+        """Try searching official Wikipedia API."""
         try:
-            # Clean query: Remove "fact check" instructions for better Wiki matching
-            clean_query = query.replace(" fact check", "").replace("full cast", "").strip()
+            # Clean query: Remove "fact check" and extract key entities
+            clean_query = (query.replace(" fact check", "")
+                              .replace("full cast", "")
+                              .replace("professional affiliations", "")
+                              .strip())
             
-            search_results = wikipedia.search(clean_query)
+            search_results = wikipedia.search(clean_query, results=5)
             if not search_results:
                 return None
-            
-            # 2. SANITY CHECK: Does the page title match our query keywords?
-            best_page_title = search_results[0]
-            
-            # Simple fuzzy check: Do words from the title appear in our query?
-            query_words = set(clean_query.lower().split())
-            title_words = set(best_page_title.lower().split())
-            
-            # Intersection check (at least one significant word must match)
-            if not query_words.intersection(title_words) and len(query_words) > 0:
-                 # Try the second result
-                 if len(search_results) > 1:
-                     best_page_title = search_results[1]
-                 else:
-                     return None
 
-            # 3. Get summary
-            summary = wikipedia.summary(best_page_title, sentences=10, auto_suggest=False)
+            # Find best matching page
+            best_page = None
             
-            return f"[Source Wikipedia - {best_page_title}]: {summary}"
+            # First pass: exact or close matches
+            for title in search_results:
+                if title.startswith("List of") or "discography" in title.lower():
+                    continue
+                
+                if clean_query.lower() in title.lower() or title.lower() in clean_query.lower():
+                    best_page = title
+                    break
+            
+            # Second pass: first non-list page
+            if not best_page:
+                for title in search_results:
+                    if not title.startswith("List of"):
+                        best_page = title
+                        break
+            
+            if not best_page:
+                return None
+            
+            # Get summary
+            summary = wikipedia.summary(best_page, sentences=5, auto_suggest=False)
+            return f"[Wikipedia - {best_page}]: {summary}"
             
         except wikipedia.exceptions.DisambiguationError as e:
-            # Handle ambiguous terms (e.g. "Mercury" -> Planet or Element?)
+            # Handle ambiguous terms
             try:
                 first_option = e.options[0]
-                summary = wikipedia.summary(first_option, sentences=3)
-                return f"[Source Wikipedia - {first_option}]: {summary}"
+                summary = wikipedia.summary(first_option, sentences=3, auto_suggest=False)
+                return f"[Wikipedia - {first_option}]: {summary}"
             except:
                 return None
         except Exception as e:
-            print(f" Wikipedia failed: {e}")
+            if self.verbose:
+                print(f" Wikipedia failed: {e}")
             return None
 
     def search(self, query):
         """
-        Main orchestration method.
+        Main orchestration method with smart fallback strategy.
         """
-        # Append 'fact check' for search engines, but keep raw query for Wikipedia
-        search_engine_query = f"{query} fact check"
-
-        # 1. Try Wikipedia
+        # Strategy 2: Try Wikipedia (better for entities/people)
         evidence = self.search_wikipedia(query)
         if evidence:
             return evidence
         
-        # 2. Fallback to DuckDuckGo
-        print("Switching to DuckDuckGo fallback...")
-        evidence = self.search_duckduckgo(search_engine_query)
+        # Strategy 1: Try DuckDuckGo with "fact check"
+        evidence = self.search_duckduckgo(f"{query} fact check")
+        if evidence:
+            return evidence
+        
+        # Strategy 3: Try DuckDuckGo without "fact check"
+        evidence = self.search_duckduckgo(query)
+        if evidence:
+            return evidence
+        
+        # Strategy 4: Last resort - Google
+        if self.verbose:
+            print("  → Using Google fallback...")
+        evidence = self.search_google(f"{query} fact check")
         if evidence:
             return evidence
             
-        # 3. Fallback to Google
-        print("Switching to Google Search fallback...")
-        evidence = self.search_google(search_engine_query)
-        if evidence:
-            return evidence
-            
-        return "No external evidence found."
+        return "No external evidence found for this query."
+
 
 if __name__ == "__main__":
-    print("Testing Robust WebRetriever Chain...")
-    retriever = WebRetriever(max_results=1)
+    print("Testing Improved WebRetriever...")
+    retriever = WebRetriever(max_results=2, verbose=True)
     
-    # Test query
-    query = "Cristiano Ronaldo ballon d'or count"
-    print(f"Query: {query}")
+    # Test queries
+    test_queries = [
+        "Nikolaj Coster-Waldau Fox Broadcasting",
+        "Cristiano Ronaldo ballon d'or count",
+        "Python programming language creator"
+    ]
     
-    result = retriever.search(query)
-    print(f"\nResult:\n{result}")
+    for query in test_queries:
+        print(f"\n{'='*60}")
+        print(f"Query: {query}")
+        print(f"{'='*60}")
+        result = retriever.search(query)
+        print(f"Result:\n{result[:300]}...")
+        time.sleep(2)

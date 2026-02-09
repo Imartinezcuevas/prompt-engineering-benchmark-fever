@@ -20,24 +20,31 @@ class LocalLLM:
         self.api_url = f"{base_url}/api/generate"
         self.headers = {"Content-Type": "application/json"}
 
-    def generate(self, prompt):
+    def generate(self, prompt, stop=None):
         """
         Sends a prompt to the model and returns the text response.
 
         Args:
             prompt (str): The input text for the LLM.
+            stop (list, optional): A list of strings where the generation should stop. 
+                                   Crucial for ReAct agents (e.g., ["Observation:"]).
 
         Returns:
             str: The generated text response.
         """
+        options = {
+            "temperature": self.temperature,
+            "num_ctx": 4096
+        }
+        
+        if stop:
+            options["stop"] = stop
+
         payload = {
             "model": self.model_name,
             "prompt": prompt,
             "stream": False,
-            "options": {
-                "temperature": self.temperature,
-                "num_ctx": 4096
-            }
+            "options": options
         }
 
         try:
@@ -50,14 +57,14 @@ class LocalLLM:
             )
 
             response.raise_for_status()
-
-            #¨ Parse the response
             result = response.json()
             return result.get("response", "").strip()
         
         except requests.exceptions.ConnectionError:
+            print("Error: Could not connect to Ollama. Is it running?")
             return "Error: Could not connect to Ollama."
         except Exception as e:
+            print(f"Error in LLM generation: {e}")
             return f"Error: {str(e)}"
         
 if __name__ == "__main__":
