@@ -73,11 +73,11 @@ class DecompositionPipeline:
         prompt = f"""Task: Convert Fact to Search Query.
         Rules: Keywords only. No conversational filler.
 
-        Fact: Stranger Things is set in Bloomington.
-        Query: Stranger Things filming location setting
-
-        Fact: Nikolaj Coster-Waldau worked with Fox.
-        Query: Nikolaj Coster-Waldau Fox Broadcasting projects
+        SEARCH QUERY BEST PRACTICES:
+        ✓ GOOD: "Nikolaj Coster-Waldau Fox" (entity + organization)
+        ✓ GOOD: "Cristiano Ronaldo Ballon d'Or" (entity + fact)
+        ✗ BAD: "early career credits" (too vague)
+        ✗ BAD: "employee records" (too specific - actors aren't employees)
 
         Fact: {sub_claim}
         Query:"""
@@ -116,10 +116,17 @@ class DecompositionPipeline:
         GOAL: Verify the claim using the EVIDENCE.
 
         RULES:
-        1. Focus on the 'NEW EVIDENCE' but use 'GLOBAL CONTEXT' if needed.
-        2. If the claim implies a specific entity type (e.g. "The film X") and evidence shows it's a "Song", output REFUTES.
-        3. If dates/numbers mismatch, output REFUTES.
-        4. If unknown, output NOT ENOUGH INFO.
+        1. If you found evidence that CONFIRMS the claim → Action: Finish with SUPPORTS
+        2. If you found evidence that CONTRADICTS the claim → Action: Finish with REFUTES
+        3. Focus on the 'NEW EVIDENCE' but use 'GLOBAL CONTEXT' if needed.
+        4. If the claim implies a specific entity type (e.g. "The film X") and evidence shows it's a "Song", output REFUTES.
+        5. If dates/numbers mismatch, output REFUTES.
+        6. If unknown, output NOT ENOUGH INFO.
+
+        INTERPRETATION GUIDE:
+        - "Person X worked with Company Y" is SUPPORTED if they appeared in Y's productions, projects, or media
+        - "Person X won N awards" is SUPPORTED if reliable sources confirm the exact number
+        - "Event X happened in Year Y" is SUPPORTED if dates match in reliable sources
 
         EVIDENCE:
         {combined_evidence}
